@@ -176,6 +176,7 @@ _import_structure = {
     "models.barthez": [],
     "models.bartpho": [],
     "models.beit": ["BEIT_PRETRAINED_CONFIG_ARCHIVE_MAP", "BeitConfig"],
+    "models.beit_3": ["BEIT_PRETRAINED_CONFIG_ARCHIVE_MAP", "Beit3Config"],
     "models.bert": [
         "BERT_PRETRAINED_CONFIG_ARCHIVE_MAP",
         "BasicTokenizer",
@@ -1231,6 +1232,17 @@ else:
             "BeitForSemanticSegmentation",
             "BeitModel",
             "BeitPreTrainedModel",
+        ]
+    )
+    _import_structure["models.beit_3"].extend(
+        [
+            "BEiT3Model",
+            "BEiT3ForVisualReasoning",
+            "BEiT3ForImageClassification",
+            "BEiT3ForCaptioning",
+            "BEiT3ForVisualQuestionAnswering",
+            "Biet3ImageTextMatchingModelOutput",
+            "BEiT3ForImageTextRetrieval",
         ]
     )
     _import_structure["models.bert"].extend(
@@ -4313,6 +4325,7 @@ if TYPE_CHECKING:
     )
     from .models.bart import BartConfig, BartTokenizer
     from .models.beit import BEIT_PRETRAINED_CONFIG_ARCHIVE_MAP, BeitConfig
+    from .models.beit_3 import Beit3Config
     from .models.bert import (
         BERT_PRETRAINED_CONFIG_ARCHIVE_MAP,
         BasicTokenizer,
@@ -5270,6 +5283,14 @@ if TYPE_CHECKING:
             BeitForSemanticSegmentation,
             BeitModel,
             BeitPreTrainedModel,
+        )
+        from .models.beit_3 import (
+            BEiT3ForImageTextRetrieval,
+            BEiT3ForVisualQuestionAnswering,
+            BEiT3ForCaptioning,
+            BEiT3ForImageClassification,
+            BEiT3ForVisualReasoning,
+            BEiT3Model,
         )
         from .models.bert import (
             BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
