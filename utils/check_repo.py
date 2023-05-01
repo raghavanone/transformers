@@ -73,6 +73,7 @@ PRIVATE_MODELS = [
     "MaskFormerSwinPreTrainedModel",
     "BridgeTowerTextModel",
     "BridgeTowerVisionModel",
+    "Beit3EncoderLayer"
 ]
 
 # Update this list for models that are not tested with a comment explaining the reason it should not be.
@@ -111,6 +112,19 @@ IGNORE_NON_TESTED = PRIVATE_MODELS.copy() + [
     "BridgeTowerVisionModel",  # No need to test it as it is tested by BridgeTowerModel model.
     "BarkCausalModel",  # Building part of bigger (tested) model.
     "BarkModel",  # Does not have a forward signature - generation tested with integration tests
+    "SpeechT5Decoder",  # Building part of bigger (tested) model.
+    "SpeechT5DecoderWithoutPrenet",  # Building part of bigger (tested) model.
+    "SpeechT5DecoderWithSpeechPrenet",  # Building part of bigger (tested) model.
+    "SpeechT5DecoderWithTextPrenet",  # Building part of bigger (tested) model.
+    "SpeechT5Encoder",  # Building part of bigger (tested) model.
+    "SpeechT5EncoderWithoutPrenet",  # Building part of bigger (tested) model.
+    "SpeechT5EncoderWithSpeechPrenet",  # Building part of bigger (tested) model.
+    "SpeechT5EncoderWithTextPrenet",  # Building part of bigger (tested) model.
+    "SpeechT5SpeechDecoder",  # Building part of bigger (tested) model.
+    "SpeechT5SpeechEncoder",  # Building part of bigger (tested) model.
+    "SpeechT5TextDecoder",  # Building part of bigger (tested) model.
+    "SpeechT5TextEncoder",  # Building part of bigger (tested) model.
+    "BEiT3Model", # Building part of bigger (tested) model.
 ]
 
 # Update this list with test files that don't have a tester with a `all_model_classes` variable and which don't
@@ -160,6 +174,10 @@ IGNORE_NON_AUTO_CONFIGURED = PRIVATE_MODELS.copy() + [
     "BlipTextModel",
     "BrosSpadeEEForTokenClassification",
     "BrosSpadeELForTokenClassification",
+    "BEiT3Model",
+    "BEiT3ForImageTextRetrieval",
+    "BEiT3ForVisualQuestionAnswering",
+    "BEiT3ForVisualReasoning",
     "TFBlipForConditionalGeneration",
     "TFBlipForImageTextRetrieval",
     "TFBlipForQuestionAnswering",
