@@ -1121,6 +1121,20 @@ class BEiT3Model(metaclass=DummyObject):
         requires_backends(self, ["torch"])
 
 
+class Beit3PreTrainedModel(metaclass=DummyObject):
+    _backends = ["torch"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["torch"])
+
+
+class Biet3ImageTextMatchingModelOutput(metaclass=DummyObject):
+    _backends = ["torch"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["torch"])
+
+
 BERT_PRETRAINED_MODEL_ARCHIVE_LIST = None
 
 
