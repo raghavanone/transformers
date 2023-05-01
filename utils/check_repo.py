@@ -73,7 +73,7 @@ PRIVATE_MODELS = [
     "MaskFormerSwinPreTrainedModel",
     "BridgeTowerTextModel",
     "BridgeTowerVisionModel",
-    "Beit3EncoderLayer"
+    "Beit3EncoderLayer",
 ]
 
 # Update this list for models that are not tested with a comment explaining the reason it should not be.
@@ -124,7 +124,7 @@ IGNORE_NON_TESTED = PRIVATE_MODELS.copy() + [
     "SpeechT5SpeechEncoder",  # Building part of bigger (tested) model.
     "SpeechT5TextDecoder",  # Building part of bigger (tested) model.
     "SpeechT5TextEncoder",  # Building part of bigger (tested) model.
-    "BEiT3Model", # Building part of bigger (tested) model.
+    "BEiT3Model",  # Building part of bigger (tested) model.
 ]
 
 # Update this list with test files that don't have a tester with a `all_model_classes` variable and which don't
