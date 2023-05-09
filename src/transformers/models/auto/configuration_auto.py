@@ -458,7 +458,7 @@ MODEL_NAMES_MAPPING = OrderedDict(
         ("bert-japanese", "BertJapanese"),
         ("bertweet", "BERTweet"),
         ("big_bird", "BigBird"),
-        ("bigbird_pegasus", "BigBird-Pegasu"),
+        ("bigbird_pegasus", "BigBird-Pegasus"),
         ("biogpt", "BioGpt"),
         ("bit", "BiT"),
         ("blenderbot", "Blenderbot"),
