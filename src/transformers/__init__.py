@@ -176,7 +176,7 @@ _import_structure = {
     "models.barthez": [],
     "models.bartpho": [],
     "models.beit": ["BEIT_PRETRAINED_CONFIG_ARCHIVE_MAP", "BeitConfig"],
-    "models.beit_3": ["BEIT3_PRETRAINED_CONFIG_ARCHIVE_MAP", "Beit3Config", "Beit3Processor"],
+    "models.beit3": ["BEIT3_PRETRAINED_CONFIG_ARCHIVE_MAP", "Beit3Config", "Beit3Processor"],
     "models.bert": [
         "BERT_PRETRAINED_CONFIG_ARCHIVE_MAP",
         "BasicTokenizer",
@@ -946,7 +946,7 @@ else:
     _import_structure["image_processing_utils"] = ["ImageProcessingMixin"]
     _import_structure["image_utils"] = ["ImageFeatureExtractionMixin"]
     _import_structure["models.beit"].extend(["BeitFeatureExtractor", "BeitImageProcessor"])
-    _import_structure["models.beit_3"].extend(["Beit3ImageProcessor"])
+    _import_structure["models.beit3"].extend(["Beit3ImageProcessor"])
     _import_structure["models.bit"].extend(["BitImageProcessor"])
     _import_structure["models.blip"].extend(["BlipImageProcessor"])
     _import_structure["models.bridgetower"].append("BridgeTowerImageProcessor")
@@ -1235,7 +1235,7 @@ else:
             "BeitPreTrainedModel",
         ]
     )
-    _import_structure["models.beit_3"].extend(
+    _import_structure["models.beit3"].extend(
         [
             "BEiT3ForCaptioning",
             "BEiT3ForImageClassification",
@@ -4327,7 +4327,7 @@ if TYPE_CHECKING:
     )
     from .models.bart import BartConfig, BartTokenizer
     from .models.beit import BEIT_PRETRAINED_CONFIG_ARCHIVE_MAP, BeitConfig
-    from .models.beit_3 import BEIT3_PRETRAINED_CONFIG_ARCHIVE_MAP, Beit3Config, Beit3Processor
+    from .models.beit3 import BEIT3_PRETRAINED_CONFIG_ARCHIVE_MAP, Beit3Config, Beit3Processor
     from .models.bert import (
         BERT_PRETRAINED_CONFIG_ARCHIVE_MAP,
         BasicTokenizer,
@@ -5027,7 +5027,7 @@ if TYPE_CHECKING:
         from .image_processing_utils import ImageProcessingMixin
         from .image_utils import ImageFeatureExtractionMixin
         from .models.beit import BeitFeatureExtractor, BeitImageProcessor
-        from .models.beit_3 import Beit3ImageProcessor
+        from .models.beit3 import Beit3ImageProcessor
         from .models.bit import BitImageProcessor
         from .models.blip import BlipImageProcessor
         from .models.bridgetower import BridgeTowerImageProcessor
@@ -5287,7 +5287,7 @@ if TYPE_CHECKING:
             BeitModel,
             BeitPreTrainedModel,
         )
-        from .models.beit_3 import (
+        from .models.beit3 import (
             BEiT3ForCaptioning,
             BEiT3ForImageClassification,
             BEiT3ForImageTextRetrieval,
