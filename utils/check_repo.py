@@ -74,6 +74,7 @@ PRIVATE_MODELS = [
     "BridgeTowerTextModel",
     "BridgeTowerVisionModel",
     "Beit3EncoderLayer",
+    "Beit3FeedForwardNetwork",
 ]
 
 # Update this list for models that are not tested with a comment explaining the reason it should not be.
