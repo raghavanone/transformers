@@ -8,8 +8,15 @@ from transformers import PreTrainedModel
 from ...activations import ACT2FN
 from .configuration_crossformer import CrossformerConfig
 
+_CHECKPOINT_FOR_DOC = "openbmb/cpm-ant-10b"
+_CONFIG_FOR_DOC = "CpmAntConfig"
 
-class ConvNextV2PreTrainedModel(PreTrainedModel):
+CROSSFORMER_PRETRAINED_MODEL_ARCHIVE_LIST = [
+    "openbmb/cpm-ant-10b",
+    # See all CPMAnt models at https://huggingface.co/models?filter=cpmant
+]
+
+class CrossformerPretrainedModel(PreTrainedModel):
     """
     An abstract class to handle weights initialization and a simple interface for downloading and loading pretrained
     models.
@@ -39,11 +46,11 @@ class ConvNextV2PreTrainedModel(PreTrainedModel):
 
 class Mlp(nn.Module):
     def __init__(
-        self,
-        config,
-        in_features,
-        hidden_features=None,
-        out_features=None,
+            self,
+            config,
+            in_features,
+            hidden_features=None,
+            out_features=None,
     ):
         super().__init__()
         out_features = out_features or in_features
@@ -118,7 +125,7 @@ class Attention(nn.Module):
         self.group_size = group_size  # Wh, Ww
         self.num_heads = num_heads
         head_dim = dim // num_heads
-        self.scale = config.qk_scale or head_dim**-0.5
+        self.scale = config.qk_scale or head_dim ** -0.5
         self.position_bias = position_bias
 
         if position_bias:
@@ -212,7 +219,7 @@ class CrossFormerBlock(nn.Module):
 
     def __init__(self, config, input_resolution, i_layer, lsda_flag, num_patch_size, drop_path):
         super().__init__()
-        self.dim = int(config.embed_dim * 2**i_layer)
+        self.dim = int(config.embed_dim * 2 ** i_layer)
         self.input_resolution = input_resolution
         self.num_heads = config.num_heads[i_layer]
         self.group_size = config.group_size[i_layer]
@@ -251,7 +258,7 @@ class CrossFormerBlock(nn.Module):
             x = x.reshape(B, H // G, G, W // G, G, C).permute(0, 1, 3, 2, 4, 5)
         else:  # 1 for LDA
             x = x.reshape(B, G, H // G, G, W // G, C).permute(0, 2, 4, 1, 3, 5)
-        x = x.reshape(B * H * W // G**2, G**2, C)
+        x = x.reshape(B * H * W // G ** 2, G ** 2, C)
 
         # multi-head self-attention
         x = self.attn(x, mask=self.attn_mask)  # nW*B, G*G, C
@@ -310,7 +317,7 @@ class PatchMerging(nn.Module):
 
         for i, ps in enumerate(patch_size):
             if i == len(patch_size) - 1:
-                out_dim = 2 * dim // 2**i
+                out_dim = 2 * dim // 2 ** i
             else:
                 out_dim = 2 * dim // 2 ** (i + 1)
             stride = 2
@@ -344,7 +351,7 @@ class PatchMerging(nn.Module):
         flops = H * W * self.dim
         for i, ps in enumerate(self.patch_size):
             if i == len(self.patch_size) - 1:
-                out_dim = 2 * self.dim // 2**i
+                out_dim = 2 * self.dim // 2 ** i
             else:
                 out_dim = 2 * self.dim // 2 ** (i + 1)
             flops += (H // 2) * (W // 2) * ps * ps * out_dim * self.dim
@@ -356,7 +363,7 @@ class Stage(nn.Module):
 
     def __init__(self, config, input_resolution, i_layer, num_patch_size, drop_path):
         super().__init__()
-        self.dim = int(config.embed_dim * 2**i_layer)
+        self.dim = int(config.embed_dim * 2 ** i_layer)
         self.input_resolution = input_resolution
         self.depth = config.depths[i_layer]
         self.use_checkpoint = config.use_checkpoint
@@ -447,7 +454,7 @@ class PatchEmbed(nn.Module):
         self.projs = nn.ModuleList()
         for i, ps in enumerate(config.patch_size):
             if i == len(config.patch_size) - 1:
-                dim = config.embed_dim // 2**i
+                dim = config.embed_dim // 2 ** i
             else:
                 dim = config.embed_dim // 2 ** (i + 1)
             stride = config.patch_size[0]
@@ -462,7 +469,7 @@ class PatchEmbed(nn.Module):
         B, C, H, W = x.shape
         # FIXME look at relaxing size constraints
         assert (
-            H == self.img_size[0] and W == self.img_size[1]
+                H == self.img_size[0] and W == self.img_size[1]
         ), f"Input image size ({H}*{W}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
         xs = []
         for i in range(len(self.projs)):
@@ -478,7 +485,7 @@ class PatchEmbed(nn.Module):
         flops = 0
         for i, ps in enumerate(self.patch_size):
             if i == len(self.patch_size) - 1:
-                dim = self.embed_dim // 2**i
+                dim = self.embed_dim // 2 ** i
             else:
                 dim = self.embed_dim // 2 ** (i + 1)
             flops += Ho * Wo * dim * self.in_chans * (self.patch_size[i] * self.patch_size[i])
@@ -487,7 +494,7 @@ class PatchEmbed(nn.Module):
         return flops
 
 
-class CrossFormer(ConvNextV2PreTrainedModel):
+class CrossFormer(CrossformerPretrainedModel):
     r"""CrossFormer
     A PyTorch impl of : `CrossFormer: A Versatile Vision Transformer Based on Cross-scale Attention` -
 
@@ -496,7 +503,6 @@ class CrossFormer(ConvNextV2PreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
 
-        self.num_classes = config.num_classes
         self.num_layers = len(config.depths)
         self.embed_dim = config.embed_dim
         self.ape = config.ape
@@ -531,31 +537,16 @@ class CrossFormer(ConvNextV2PreTrainedModel):
             num_patch_size = num_patch_sizes[i_layer]
             layer = Stage(
                 config,
-                input_resolution=(patches_resolution[0] // (2**i_layer), patches_resolution[1] // (2**i_layer)),
+                input_resolution=(patches_resolution[0] // (2 ** i_layer), patches_resolution[1] // (2 ** i_layer)),
                 i_layer=i_layer,
                 num_patch_size=num_patch_size,
-                drop_path=dpr[sum(config.depths[:i_layer]) : sum(config.depths[: i_layer + 1])],
+                drop_path=dpr[sum(config.depths[:i_layer]): sum(config.depths[: i_layer + 1])],
             )
-            # layer = Stage(dim=int(config.embed_dim * 2 ** i_layer),
-            #               input_resolution=(patches_resolution[0] // (2 ** i_layer),
-            #                                 patches_resolution[1] // (2 ** i_layer)),
-            #               depth=config.depths[i_layer],
-            #               num_heads=config.num_heads[i_layer],
-            #               group_size=config.group_size[i_layer],
-            #               mlp_ratio=self.mlp_ratio,
-            #               qkv_bias=config.qkv_bias, qk_scale=config.qk_scale,
-            #               drop=config.drop_rate, attn_drop=config.attn_drop_rate,
-            #               drop_path=dpr[sum(config.depths[:i_layer]):sum(config.depths[:i_layer + 1])],
-            #               norm_layer=config.norm_layer,
-            #               downsample=PatchMerging if (i_layer < self.num_layers - 1) else None,
-            #               use_checkpoint=config.use_checkpoint,
-            #               patch_size_end=patch_size_end,
-            #               num_patch_size=num_patch_size)
             self.layers.append(layer)
 
         self.norm = config.norm_layer(self.num_features)
         self.avgpool = nn.AdaptiveAvgPool1d(1)
-        self.head = nn.Linear(self.num_features, config.num_classes) if config.num_classes > 0 else nn.Identity()
+        # self.head = nn.Linear(self.num_features, config.num_classes) if config.num_classes > 0 else nn.Identity()
 
         self.apply(self._init_weights)
 
@@ -590,16 +581,28 @@ class CrossFormer(ConvNextV2PreTrainedModel):
         x = torch.flatten(x, 1)
         return x
 
-    def forward(self, x):
-        x = self.forward_features(x)
-        x = self.head(x)
-        return x
+    def forward(self, pixel_values):
+        hidden = self.forward_features(pixel_values)
+        return hidden
 
     def flops(self):
         flops = 0
         flops += self.patch_embed.flops()
         for i, layer in enumerate(self.layers):
             flops += layer.flops()
-        flops += self.num_features * self.patches_resolution[0] * self.patches_resolution[1] // (2**self.num_layers)
+        flops += self.num_features * self.patches_resolution[0] * self.patches_resolution[1] // (2 ** self.num_layers)
         flops += self.num_features * self.num_classes
         return flops
+
+
+class CrossFormerForImageClassification(CrossformerPretrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.crossformer = CrossFormer(config)
+        self.num_features = int(self.embed_dim * 2 ** (self.num_layers - 1))
+        self.head = nn.Linear(self.num_features, config.num_classes) if config.num_classes > 0 else nn.Identity()
+
+    def forward(self, pixel_values):
+        hidden = self.crossformer(pixel_values)
+        logits = self.head(hidden)
+        return logits

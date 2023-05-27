@@ -262,6 +262,7 @@ _import_structure = {
     "models.convnextv2": ["CONVNEXTV2_PRETRAINED_CONFIG_ARCHIVE_MAP", "ConvNextV2Config"],
     "models.cpm": [],
     "models.cpmant": ["CPMANT_PRETRAINED_CONFIG_ARCHIVE_MAP", "CpmAntConfig", "CpmAntTokenizer"],
+    "models.crossformer": ["CROSSFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "CrossformerConfig"],
     "models.ctrl": ["CTRL_PRETRAINED_CONFIG_ARCHIVE_MAP", "CTRLConfig", "CTRLTokenizer"],
     "models.cvt": ["CVT_PRETRAINED_CONFIG_ARCHIVE_MAP", "CvtConfig"],
     "models.data2vec": [
@@ -1492,6 +1493,14 @@ else:
             "CpmAntPreTrainedModel",
         ]
     )
+    _import_structure["models.crossformer"].extend(
+        [
+            "CROSSFORMER_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "CrossFormerForImageClassification",
+            "CrossFormer",
+        ]
+    )
+
     _import_structure["models.ctrl"].extend(
         [
             "CTRL_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -4375,6 +4384,7 @@ if TYPE_CHECKING:
     from .models.convnext import CONVNEXT_PRETRAINED_CONFIG_ARCHIVE_MAP, ConvNextConfig
     from .models.convnextv2 import CONVNEXTV2_PRETRAINED_CONFIG_ARCHIVE_MAP, ConvNextV2Config
     from .models.cpmant import CPMANT_PRETRAINED_CONFIG_ARCHIVE_MAP, CpmAntConfig, CpmAntTokenizer
+    from .models.crossformer import CROSSFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, CrossformerConfig
     from .models.ctrl import CTRL_PRETRAINED_CONFIG_ARCHIVE_MAP, CTRLConfig, CTRLTokenizer
     from .models.cvt import CVT_PRETRAINED_CONFIG_ARCHIVE_MAP, CvtConfig
     from .models.data2vec import (
@@ -5460,6 +5470,11 @@ if TYPE_CHECKING:
             CpmAntForCausalLM,
             CpmAntModel,
             CpmAntPreTrainedModel,
+        )
+        from .models.crossformer import (
+            CROSSFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,
+            CrossFormerForImageClassification,
+            CrossFormer,
         )
         from .models.ctrl import (
             CTRL_PRETRAINED_MODEL_ARCHIVE_LIST,
