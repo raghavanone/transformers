@@ -20,6 +20,8 @@ import unittest
 from torch import nn
 
 from transformers import ConvNextConfig, CrossformerConfig
+from transformers.models.auto import get_values
+from transformers.models.auto.modeling_auto import MODEL_MAPPING_NAMES, MODEL_FOR_BACKBONE_MAPPING_NAMES
 from transformers.testing_utils import require_torch, require_vision, slow, torch_device
 from transformers.utils import cached_property, is_torch_available, is_vision_available
 
@@ -30,7 +32,7 @@ if is_torch_available():
     import torch
 
     from transformers import ConvNextBackbone, ConvNextForImageClassification, ConvNextModel
-    from transformers.models.crossformer import CrossFormer, CrossFormerForImageClassification
+    from transformers.models.crossformer import CrossFormerModel, CrossFormerForImageClassification
 
 if is_vision_available():
     from PIL import Image
@@ -58,12 +60,12 @@ class CrossformerModelTester:
             activation_function="gelu",
             attn_drop_rate=0.0,
             drop_path_rate=0.2,
-            norm_layer=nn.LayerNorm,
             ape=False,
             patch_norm=True,
             use_checkpoint=False,
             merge_size=[[2], [2], [2]],
             use_labels=True,
+            is_training=True,
             scope=None,
     ):
         self.parent = parent
@@ -83,12 +85,13 @@ class CrossformerModelTester:
         self.activation_function = activation_function
         self.attn_drop_rate = attn_drop_rate
         self.drop_path_rate = drop_path_rate
-        self.norm_layer = norm_layer
         self.ape = ape
         self.patch_norm = patch_norm
         self.use_checkpoint = use_checkpoint
         self.merge_size = merge_size
         self.use_labels = use_labels
+
+        self.is_training = is_training
 
     def prepare_config_and_inputs(self):
         pixel_values = floats_tensor([self.batch_size, self.in_chans, self.img_size, self.img_size])
@@ -117,7 +120,6 @@ class CrossformerModelTester:
             activation_function=self.activation_function,
             attn_drop_rate=self.attn_drop_rate,
             drop_path_rate=self.drop_path_rate,
-            norm_layer=self.norm_layer,
             ape=self.ape,
             patch_norm=self.patch_norm,
             use_checkpoint=self.use_checkpoint,
@@ -179,7 +181,7 @@ class CrossformerModelTester:
 
 
 @require_torch
-class ConvNextModelTest(ModelTesterMixin, PipelineTesterMixin, unittest.TestCase):
+class CrossformerModelTest(ModelTesterMixin, PipelineTesterMixin, unittest.TestCase):
     """
     Here we also overwrite some of the tests of test_modeling_common.py, as ConvNext does not use input_ids, inputs_embeds,
     attention_mask and seq_length.
@@ -187,14 +189,14 @@ class ConvNextModelTest(ModelTesterMixin, PipelineTesterMixin, unittest.TestCase
 
     all_model_classes = (
         (
-            CrossFormer,
+            CrossFormerModel,
             CrossFormerForImageClassification,
         )
         if is_torch_available()
         else ()
     )
     pipeline_model_mapping = (
-        {"feature-extraction": CrossFormer, "image-classification": CrossFormerForImageClassification}
+        {"feature-extraction": CrossFormerModel, "image-classification": CrossFormerForImageClassification}
         if is_torch_available()
         else {}
     )
@@ -203,7 +205,49 @@ class ConvNextModelTest(ModelTesterMixin, PipelineTesterMixin, unittest.TestCase
     # test_pruning = False
     # test_resize_embeddings = False
     # test_head_masking = False
-    # has_attentions = False
+    has_attentions = False
 
     def setUp(self):
         self.model_tester = CrossformerModelTester(self)
+
+    def _prepare_for_class(self, inputs_dict, model_class, return_labels=False):
+        _ , inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
+        if return_labels:
+            inputs_dict["labels"] = torch.zeros(
+                self.model_tester.batch_size, dtype=torch.long, device=torch_device
+            )
+        return inputs_dict
+
+    def test_forward_signature(self):
+        config, _ = self.model_tester.prepare_config_and_inputs_for_common()
+
+        for model_class in self.all_model_classes:
+            model = model_class(config)
+            signature = inspect.signature(model.forward)
+            # signature.parameters is an OrderedDict => so arg_names order is deterministic
+            arg_names = [*signature.parameters.keys()]
+
+            self.assertListEqual(arg_names[:1], ['pixel_values'])
+
+    def test_training(self):
+        if not self.model_tester.is_training:
+            return
+
+        for model_class in self.all_model_classes:
+            if model_class.__name__ == "CrossFormerModel":
+                return
+            config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
+            config.return_dict = True
+
+            if model_class.__name__ in [
+                *get_values(MODEL_MAPPING_NAMES),
+                *get_values(MODEL_FOR_BACKBONE_MAPPING_NAMES),
+            ]:
+                continue
+
+            model = model_class(config)
+            model.to(torch_device)
+            model.train()
+            inputs = self._prepare_for_class(inputs_dict, model_class, return_labels=True)
+            loss = model(**inputs).loss
+            loss.backward()

@@ -1,12 +1,16 @@
+from typing import Optional
+
 import torch
 import torch.nn as nn
 import torch.utils.checkpoint as checkpoint
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
+from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss, MSELoss
 
 from transformers import PreTrainedModel
 
 from ...activations import ACT2FN
 from .configuration_crossformer import CrossformerConfig
+from ...modeling_outputs import ImageClassifierOutputWithNoAttention
 
 _CHECKPOINT_FOR_DOC = "openbmb/cpm-ant-10b"
 _CONFIG_FOR_DOC = "CpmAntConfig"
@@ -15,6 +19,7 @@ CROSSFORMER_PRETRAINED_MODEL_ARCHIVE_LIST = [
     "openbmb/cpm-ant-10b",
     # See all CPMAnt models at https://huggingface.co/models?filter=cpmant
 ]
+
 
 class CrossformerPretrainedModel(PreTrainedModel):
     """
@@ -32,7 +37,7 @@ class CrossformerPretrainedModel(PreTrainedModel):
         if isinstance(module, (nn.Linear, nn.Conv2d)):
             # Slightly different from the TF version which uses truncated_normal for initialization
             # cf https://github.com/pytorch/pytorch/pull/5617
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            # module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
             if module.bias is not None:
                 module.bias.data.zero_()
         elif isinstance(module, nn.LayerNorm):
@@ -40,7 +45,8 @@ class CrossformerPretrainedModel(PreTrainedModel):
             module.weight.data.fill_(1.0)
 
     def _set_gradient_checkpointing(self, module, value=False):
-        if isinstance(module, CrossFormer):
+        if isinstance(module,
+                      (CrossFormerModel, CrossFormerBlock, Stage, Attention, CrossFormerForImageClassification, PatchEmbed)):
             module.gradient_checkpointing = value
 
 
@@ -135,7 +141,7 @@ class Attention(nn.Module):
             position_bias_h = torch.arange(1 - self.group_size[0], self.group_size[0])
             position_bias_w = torch.arange(1 - self.group_size[1], self.group_size[1])
             biases = torch.stack(torch.meshgrid([position_bias_h, position_bias_w]))  # 2, 2Wh-1, 2W2-1
-            biases = biases.flatten(1).transpose(0, 1).float()
+            biases = biases.flatten(1).transpose(0, 1).float().contiguous()
             self.register_buffer("biases", biases)
 
             # get pair-wise relative position index for each token inside the group
@@ -231,12 +237,12 @@ class CrossFormerBlock(nn.Module):
             self.lsda_flag = 0
             self.group_size = min(self.input_resolution)
 
-        self.norm1 = config.norm_layer(self.dim)
+        self.norm1 = nn.LayerNorm(self.dim)
 
         self.attn = Attention(config, self.dim, group_size=to_2tuple(self.group_size), num_heads=self.num_heads)
 
         self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
-        self.norm2 = config.norm_layer(self.dim)
+        self.norm2 = nn.LayerNorm(self.dim)
         mlp_hidden_dim = int(self.dim * config.mlp_ratio)
         self.mlp = Mlp(config, in_features=self.dim, hidden_features=mlp_hidden_dim)
 
@@ -390,7 +396,7 @@ class Stage(nn.Module):
             #                                     qkv_bias=qkv_bias, qk_scale=qk_scale,
             #                                     drop=drop, attn_drop=attn_drop,
             #                                     drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-            #                                     norm_layer=config.norm_layer,
+            #                                     norm_layer=nn.LayerNorm,
             #                                     num_patch_size=num_patch_size))
 
         # patch merging layer
@@ -398,7 +404,7 @@ class Stage(nn.Module):
             self.downsample = PatchMerging(
                 self.input_resolution,
                 dim=self.dim,
-                norm_layer=config.norm_layer,
+                norm_layer=nn.LayerNorm,
                 patch_size=self.patch_size_end,
                 num_input_patch_size=num_patch_size,
             )
@@ -461,7 +467,7 @@ class PatchEmbed(nn.Module):
             padding = (ps - config.patch_size[0]) // 2
             self.projs.append(nn.Conv2d(config.in_chans, dim, kernel_size=ps, stride=stride, padding=padding))
         if config.patch_norm:
-            self.norm = config.norm_layer(config.embed_dim)
+            self.norm = nn.LayerNorm(config.embed_dim)
         else:
             self.norm = None
 
@@ -494,7 +500,7 @@ class PatchEmbed(nn.Module):
         return flops
 
 
-class CrossFormer(CrossformerPretrainedModel):
+class CrossFormerModel(CrossformerPretrainedModel):
     r"""CrossFormer
     A PyTorch impl of : `CrossFormer: A Versatile Vision Transformer Based on Cross-scale Attention` -
 
@@ -509,6 +515,7 @@ class CrossFormer(CrossformerPretrainedModel):
         self.patch_norm = config.patch_norm
         self.num_features = int(self.embed_dim * 2 ** (self.num_layers - 1))
         self.mlp_ratio = config.mlp_ratio
+        self.gradient_checkpointing = False
 
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed(config)
@@ -544,7 +551,7 @@ class CrossFormer(CrossformerPretrainedModel):
             )
             self.layers.append(layer)
 
-        self.norm = config.norm_layer(self.num_features)
+        self.norm = nn.LayerNorm(self.num_features)
         self.avgpool = nn.AdaptiveAvgPool1d(1)
         # self.head = nn.Linear(self.num_features, config.num_classes) if config.num_classes > 0 else nn.Identity()
 
@@ -598,11 +605,53 @@ class CrossFormer(CrossformerPretrainedModel):
 class CrossFormerForImageClassification(CrossformerPretrainedModel):
     def __init__(self, config):
         super().__init__(config)
-        self.crossformer = CrossFormer(config)
-        self.num_features = int(self.embed_dim * 2 ** (self.num_layers - 1))
-        self.head = nn.Linear(self.num_features, config.num_classes) if config.num_classes > 0 else nn.Identity()
+        self.num_layers = len(config.depths)
+        self.num_labels = config.num_labels
+        self.crossformer = CrossFormerModel(config)
+        self.num_features = int(config.embed_dim * 2 ** (self.num_layers - 1))
+        self.head = nn.Linear(self.num_features, config.num_classes)
 
-    def forward(self, pixel_values):
+    def forward(self,
+                pixel_values,
+                output_hidden_states: Optional[bool] = None,
+                return_dict: Optional[bool] = None,
+                labels: Optional[torch.LongTensor] = None,
+                ):
         hidden = self.crossformer(pixel_values)
         logits = self.head(hidden)
-        return logits
+
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        loss = None
+        if labels is not None:
+            if self.config.problem_type is None:
+                if self.num_labels == 1:
+                    self.config.problem_type = "regression"
+                elif self.num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
+                    self.config.problem_type = "single_label_classification"
+                else:
+                    self.config.problem_type = "multi_label_classification"
+
+                if self.config.problem_type == "regression":
+                    loss_fct = MSELoss()
+                    if self.num_labels == 1:
+                        loss = loss_fct(logits.squeeze(), labels.squeeze())
+                    else:
+                        loss = loss_fct(logits, labels)
+                elif self.config.problem_type == "single_label_classification":
+                    loss_fct = CrossEntropyLoss()
+                    loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+                elif self.config.problem_type == "multi_label_classification":
+                    loss_fct = BCEWithLogitsLoss()
+                    loss = loss_fct(logits, labels)
+
+        if not return_dict:
+            output = (logits,)
+            output = (output + (hidden)) if output_hidden_states else output
+            return ((loss,) + output) if loss is not None else output
+
+        return ImageClassifierOutputWithNoAttention(
+            loss=loss,
+            logits=logits,
+            hidden_states=hidden,
+        )

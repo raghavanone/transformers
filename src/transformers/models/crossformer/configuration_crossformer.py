@@ -51,7 +51,6 @@ class CrossformerConfig(PretrainedConfig):
         drop_rate (float): Dropout rate. Default: 0
         attn_drop_rate (float): Attention dropout rate. Default: 0
         drop_path_rate (float): Stochastic depth rate. Default: 0.1
-        norm_layer (nn.Module): Normalization layer. Default: nn.LayerNorm.
         ape (bool): If True, add absolute position embedding to the patch embedding. Default: False
         patch_norm (bool): If True, add normalization after patch embedding. Default: True
         use_checkpoint (bool): Whether to use checkpointing to save memory. Default: False
@@ -88,7 +87,6 @@ class CrossformerConfig(PretrainedConfig):
         activation_function="gelu",
         attn_drop_rate=0.0,
         drop_path_rate=0.2,
-        norm_layer=nn.LayerNorm,
         ape=False,
         patch_norm=True,
         use_checkpoint=False,
@@ -112,7 +110,6 @@ class CrossformerConfig(PretrainedConfig):
         self.activation_function = activation_function
         self.attn_drop_rate = attn_drop_rate
         self.drop_path_rate = drop_path_rate
-        self.norm_layer = norm_layer
         self.ape = ape
         self.patch_norm = patch_norm
         self.use_checkpoint = use_checkpoint

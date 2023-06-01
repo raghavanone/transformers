@@ -30,7 +30,7 @@ else:
     _import_structure["modeling_crossformer"] = [
         "CROSSFORMER_PRETRAINED_MODEL_ARCHIVE_LIST",
         "CrossFormerForImageClassification",
-        "CrossFormer",
+        "CrossFormerModel",
     ]
 
 
@@ -46,7 +46,7 @@ if TYPE_CHECKING:
         from .modeling_crossformer import (
             CROSSFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,
             CrossFormerForImageClassification,
-            CrossFormer,
+            CrossFormerModel,
         )
 
 
