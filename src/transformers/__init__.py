@@ -3784,6 +3784,7 @@ else:
             "TFWhisperForConditionalGeneration",
             "TFWhisperModel",
             "TFWhisperPreTrainedModel",
+            "TFWhisperForAudioClassification",
         ]
     )
     _import_structure["models.xglm"].extend(
@@ -7295,6 +7296,7 @@ if TYPE_CHECKING:
             TFWhisperForConditionalGeneration,
             TFWhisperModel,
             TFWhisperPreTrainedModel,
+            TFWhisperForAudioClassification,
         )
         from .models.xglm import (
             TF_XGLM_PRETRAINED_MODEL_ARCHIVE_LIST,

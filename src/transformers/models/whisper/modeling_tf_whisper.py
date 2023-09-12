@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import math
 import random
+import warnings
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -31,7 +32,7 @@ from ...modeling_tf_outputs import (
     TFBaseModelOutput,
     TFBaseModelOutputWithPastAndCrossAttentions,
     TFSeq2SeqLMOutput,
-    TFSeq2SeqModelOutput,
+    TFSeq2SeqModelOutput, TFSequenceClassifierOutput,
 )
 from ...modeling_tf_utils import (
     TFCausalLanguageModelingLoss,
@@ -47,6 +48,8 @@ from .tokenization_whisper import TASK_IDS, TO_LANGUAGE_CODE
 
 
 logger = logging.get_logger(__name__)
+
+_HIDDEN_STATES_START_POSITION = 2
 
 _CONFIG_FOR_DOC = "WhisperConfig"
 
@@ -1599,3 +1602,87 @@ class TFWhisperForConditionalGeneration(TFWhisperPreTrainedModel, TFCausalLangua
             "decoder_attention_mask": decoder_attention_mask,
             "decoder_position_ids": decoder_position_ids,
         }
+
+
+class TFWhisperForAudioClassification(TFWhisperPreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.encoder = TFWhisperEncoder(config, name="model")
+        self.num_layers = config.num_hidden_layers + 1
+        if config.use_weighted_layer_sum:
+            self.layer_weights = tf.Variable(tf.ones(shape=(self.num_layers,)) / self.num_layers)
+        self.projector = tf.keras.layers.Dense(units=config.classifier_proj_size, input_shape=(config.hidden_size,),name="projector")
+        self.classifier = tf.keras.layers.Dense(
+            units=config.num_labels, input_shape=(config.classifier_proj_size,), activation=None,name="classifier"
+        )
+    @property
+    def dummy_inputs(self) -> Dict[str, tf.Tensor]:
+        """
+        Dummy inputs to build the network.
+        Returns:
+            `Dict[str, tf.Tensor]`: The dummy inputs.
+        """
+        return {
+            self.main_input_name: tf.random.uniform(
+                [1, self.config.num_mel_bins, self.config.max_source_positions * 2 - 1], dtype=tf.float32
+            ),
+        }
+
+    @property
+    def input_signature(self):
+        return {
+            "input_features": tf.TensorSpec((None, self.config.num_mel_bins, None), tf.float32, name="input_features"),
+        }
+
+    @unpack_inputs
+    def call(
+        self,
+        input_features: Optional[tf.Tensor] = None,
+        head_mask: Optional[tf.Tensor] = None,
+        encoder_outputs: Optional[Tuple[Tuple[tf.Tensor]]] = None,
+        labels: Optional[tf.Tensor] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ):
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        output_hidden_states = True if self.config.use_weighted_layer_sum else output_hidden_states
+
+        if encoder_outputs is None:
+            encoder_outputs = self.encoder(
+                input_features,
+                head_mask=head_mask,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+        print("Tensor flow")
+        print(encoder_outputs)
+        if self.config.use_weighted_layer_sum:
+            hidden_states = tf.stack(encoder_outputs[2], axis=1)
+            norm_weights = tf.nn.softmax(self.layer_weights, axis=-1)
+            hidden_states = tf.reduce_sum(hidden_states * tf.reshape(norm_weights, [-1, 1, 1]), axis=1)
+        else:
+            hidden_states = encoder_outputs[0]
+
+        hidden_states = self.projector(hidden_states)
+        pooled_output = tf.reduce_mean(hidden_states, axis=1)
+
+        logits = self.classifier(pooled_output)
+
+        loss = None
+
+        if labels is not None:
+            loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+            loss = loss_fn(tf.reshape(labels, [-1]), tf.reshape(logits, [-1, self.config.num_labels]))
+
+        if not return_dict:
+            output = (logits,) + encoder_outputs[1:]
+            return ((loss,) + output) if loss is not None else output
+
+        return TFSequenceClassifierOutput(
+            loss=loss,
+            logits=logits,
+            hidden_states=encoder_outputs.hidden_states,
+            attentions=encoder_outputs.attentions,
+        )

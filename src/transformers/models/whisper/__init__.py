@@ -63,6 +63,7 @@ else:
         "TFWhisperForConditionalGeneration",
         "TFWhisperModel",
         "TFWhisperPreTrainedModel",
+        "TFWhisperForAudioClassification",
     ]
 
 try:
@@ -118,6 +119,7 @@ if TYPE_CHECKING:
             TFWhisperForConditionalGeneration,
             TFWhisperModel,
             TFWhisperPreTrainedModel,
+            TFWhisperForAudioClassification,
         )
 
     try:

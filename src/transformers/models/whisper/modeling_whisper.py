@@ -1931,7 +1931,8 @@ class WhisperForAudioClassification(WhisperPreTrainedModel):
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
             )
-
+        print("Torch")
+        print(input_features)
         if self.config.use_weighted_layer_sum:
             hidden_states = torch.stack(encoder_outputs, dim=1)
             norm_weights = nn.functional.softmax(self.layer_weights, dim=-1)
