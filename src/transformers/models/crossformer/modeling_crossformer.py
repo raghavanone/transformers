@@ -10,7 +10,7 @@ from transformers import PreTrainedModel
 
 from ...activations import ACT2FN
 from .configuration_crossformer import CrossformerConfig
-from ...modeling_outputs import ImageClassifierOutputWithNoAttention
+from ...modeling_outputs import ImageClassifierOutputWithNoAttention, BaseModelOutput
 
 _CHECKPOINT_FOR_DOC = "openbmb/cpm-ant-10b"
 _CONFIG_FOR_DOC = "CpmAntConfig"
@@ -30,14 +30,13 @@ class CrossformerPretrainedModel(PreTrainedModel):
     config_class = CrossformerConfig
     base_model_prefix = "crossformer"
     main_input_name = "pixel_values"
-    supports_gradient_checkpointing = True
 
     def _init_weights(self, module):
         """Initialize the weights"""
         if isinstance(module, (nn.Linear, nn.Conv2d)):
             # Slightly different from the TF version which uses truncated_normal for initialization
             # cf https://github.com/pytorch/pytorch/pull/5617
-            # module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            # module.weight.data.normal_(mean=0.0, std=self.c
             if module.bias is not None:
                 module.bias.data.zero_()
         elif isinstance(module, nn.LayerNorm):
@@ -46,7 +45,8 @@ class CrossformerPretrainedModel(PreTrainedModel):
 
     def _set_gradient_checkpointing(self, module, value=False):
         if isinstance(module,
-                      (CrossFormerModel, CrossFormerBlock, Stage, Attention, CrossFormerForImageClassification, PatchEmbed)):
+                      (CrossFormerModel, CrossFormerBlock, Stage, Attention, CrossFormerForImageClassification,
+                       PatchEmbed)):
             module.gradient_checkpointing = value
 
 
@@ -588,9 +588,13 @@ class CrossFormerModel(CrossformerPretrainedModel):
         x = torch.flatten(x, 1)
         return x
 
-    def forward(self, pixel_values):
+    def forward(self, pixel_values, return_dict: Optional[bool] = None,output_hidden_states: Optional[bool] = None):
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
         hidden = self.forward_features(pixel_values)
-        return hidden
+        if not return_dict:
+            return (hidden,)
+        else:
+            return BaseModelOutput(hidden_states=hidden)
 
     def flops(self):
         flops = 0
@@ -617,8 +621,9 @@ class CrossFormerForImageClassification(CrossformerPretrainedModel):
                 return_dict: Optional[bool] = None,
                 labels: Optional[torch.LongTensor] = None,
                 ):
-        hidden = self.crossformer(pixel_values)
-        logits = self.head(hidden)
+        output = self.crossformer(pixel_values)
+        hidden_states = output[0] if not return_dict else output["hidden_states"]
+        logits = self.head(hidden_states)
 
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
@@ -632,26 +637,26 @@ class CrossFormerForImageClassification(CrossformerPretrainedModel):
                 else:
                     self.config.problem_type = "multi_label_classification"
 
-                if self.config.problem_type == "regression":
-                    loss_fct = MSELoss()
-                    if self.num_labels == 1:
-                        loss = loss_fct(logits.squeeze(), labels.squeeze())
-                    else:
-                        loss = loss_fct(logits, labels)
-                elif self.config.problem_type == "single_label_classification":
-                    loss_fct = CrossEntropyLoss()
-                    loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
-                elif self.config.problem_type == "multi_label_classification":
-                    loss_fct = BCEWithLogitsLoss()
+            if self.config.problem_type == "regression":
+                loss_fct = MSELoss()
+                if self.num_labels == 1:
+                    loss = loss_fct(logits.squeeze(), labels.squeeze())
+                else:
                     loss = loss_fct(logits, labels)
+            elif self.config.problem_type == "single_label_classification":
+                loss_fct = CrossEntropyLoss()
+                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+            elif self.config.problem_type == "multi_label_classification":
+                loss_fct = BCEWithLogitsLoss()
+                loss = loss_fct(logits, labels)
 
         if not return_dict:
             output = (logits,)
-            output = (output + (hidden)) if output_hidden_states else output
+            output = (output + (hidden_states,)) if output_hidden_states else output
             return ((loss,) + output) if loss is not None else output
 
         return ImageClassifierOutputWithNoAttention(
             loss=loss,
             logits=logits,
-            hidden_states=hidden,
+            hidden_states=hidden_states if output_hidden_states else None,
         )

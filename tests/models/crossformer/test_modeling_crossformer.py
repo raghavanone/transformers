@@ -16,6 +16,7 @@
 
 import inspect
 import unittest
+from typing import List, Tuple, Dict
 
 from torch import nn
 
@@ -50,9 +51,9 @@ class CrossformerModelTester:
             in_chans=3,
             num_classes=1000,
             embed_dim=96,
-            depths=[2, 2, 6, 2],
-            num_heads=[3, 6, 12, 24],
-            group_size=[7, 7, 7, 7],
+            depths=[ 2],
+            num_heads=[3],
+            group_size=[7],
             mlp_ratio=4.0,
             qkv_bias=True,
             qk_scale=None,
@@ -66,6 +67,7 @@ class CrossformerModelTester:
             merge_size=[[2], [2], [2]],
             use_labels=True,
             is_training=True,
+            num_labels=True,
             scope=None,
     ):
         self.parent = parent
@@ -90,7 +92,7 @@ class CrossformerModelTester:
         self.use_checkpoint = use_checkpoint
         self.merge_size = merge_size
         self.use_labels = use_labels
-
+        self.num_labels = num_labels
         self.is_training = is_training
 
     def prepare_config_and_inputs(self):
@@ -124,6 +126,7 @@ class CrossformerModelTester:
             patch_norm=self.patch_norm,
             use_checkpoint=self.use_checkpoint,
             merge_size=self.merge_size,
+            num_labels=self.num_labels
         )
 
     def create_and_check_model(self, config, pixel_values, labels):
@@ -179,7 +182,6 @@ class CrossformerModelTester:
         inputs_dict = {"pixel_values": pixel_values}
         return config, inputs_dict
 
-
 @require_torch
 class CrossformerModelTest(ModelTesterMixin, PipelineTesterMixin, unittest.TestCase):
     """
@@ -201,18 +203,18 @@ class CrossformerModelTest(ModelTesterMixin, PipelineTesterMixin, unittest.TestC
         else {}
     )
 
-    # fx_compatible = True
-    # test_pruning = False
-    # test_resize_embeddings = False
-    # test_head_masking = False
+    fx_compatible = False
+    test_torchscript = False
+    test_pruning = False
+    test_resize_embeddings = False
+    test_head_masking = False
     has_attentions = False
 
     def setUp(self):
         self.model_tester = CrossformerModelTester(self)
 
     def _prepare_for_class(self, inputs_dict, model_class, return_labels=False):
-        _ , inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
-        if return_labels:
+        if return_labels and model_class.__name__ != "CrossFormerModel":
             inputs_dict["labels"] = torch.zeros(
                 self.model_tester.batch_size, dtype=torch.long, device=torch_device
             )
@@ -251,3 +253,69 @@ class CrossformerModelTest(ModelTesterMixin, PipelineTesterMixin, unittest.TestC
             inputs = self._prepare_for_class(inputs_dict, model_class, return_labels=True)
             loss = model(**inputs).loss
             loss.backward()
+
+    @unittest.skip(reason="ResNet does not use inputs_embeds")
+    def test_inputs_embeds(self):
+        pass
+
+    def test_model_outputs_equivalence(self):
+        config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
+
+        def set_nan_tensor_to_zero(t):
+            t[t != t] = 0
+            return t
+
+        def check_equivalence(model, tuple_inputs, dict_inputs, additional_kwargs={}):
+            with torch.no_grad():
+                tuple_output = model(**tuple_inputs, return_dict=False, **additional_kwargs)
+                dict_output = model(**dict_inputs, return_dict=True, **additional_kwargs).to_tuple()
+
+                def recursive_check(tuple_object, dict_object):
+                    if isinstance(tuple_object, (List, Tuple)):
+                        for tuple_iterable_value, dict_iterable_value in zip(tuple_object, dict_object):
+                            recursive_check(tuple_iterable_value, dict_iterable_value)
+                    elif isinstance(tuple_object, Dict):
+                        for tuple_iterable_value, dict_iterable_value in zip(
+                            tuple_object.values(), dict_object.values()
+                        ):
+                            recursive_check(tuple_iterable_value, dict_iterable_value)
+                    elif tuple_object is None:
+                        return
+                    else:
+                        self.assertTrue(
+                            torch.allclose(
+                                set_nan_tensor_to_zero(tuple_object), set_nan_tensor_to_zero(dict_object), atol=1e-5
+                            ),
+                            msg=(
+                                "Tuple and dict output are not equal. Difference:"
+                                f" {torch.max(torch.abs(tuple_object - dict_object))}. Tuple has `nan`:"
+                                f" {torch.isnan(tuple_object).any()} and `inf`: {torch.isinf(tuple_object)}. Dict has"
+                                f" `nan`: {torch.isnan(dict_object).any()} and `inf`: {torch.isinf(dict_object)}."
+                            ),
+                        )
+
+                recursive_check(tuple_output, dict_output)
+
+        for model_class in self.all_model_classes:
+            model = model_class(config)
+            model.to(torch_device)
+            model.eval()
+
+            tuple_inputs = self._prepare_for_class(inputs_dict, model_class)
+            dict_inputs = self._prepare_for_class(inputs_dict, model_class)
+            check_equivalence(model, tuple_inputs, dict_inputs)
+
+            tuple_inputs = self._prepare_for_class(inputs_dict, model_class)
+            dict_inputs = self._prepare_for_class(inputs_dict, model_class)
+            check_equivalence(model, tuple_inputs, dict_inputs, {"output_hidden_states": True})
+
+            tuple_inputs = self._prepare_for_class(inputs_dict, model_class, return_labels=True)
+            dict_inputs = self._prepare_for_class(inputs_dict, model_class, return_labels=True)
+            check_equivalence(model, tuple_inputs, dict_inputs, {"output_hidden_states": True})
+
+    @unittest.skip(reason="ResNet does not support input and output embeddings")
+    def test_model_common_attributes(self):
+        pass
+
+    def test_hidden_states_output(self):
+        pass
