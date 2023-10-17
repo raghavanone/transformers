@@ -328,9 +328,8 @@ class Beit3PositionEmbeddings(nn.Module):
         self.num_patches = (image_size[1] // patch_size[1]) * (image_size[0] // patch_size[0]) + 1
 
         # being consistent with original implementation with Fairseq, which starts from 2 for position embedding
-        # this needs to be reversed it seems
-        self.text = nn.Embedding(self.num_patches + 2, config.hidden_size)
-        self.image = nn.Embedding(config.max_position_embeddings, config.hidden_size)
+        self.image = nn.Embedding(self.num_patches + 2, config.embed_dim)
+        self.text = nn.Embedding(config.max_source_positions, config.embed_dim)
 
     def forward(self, hidden_states: torch.Tensor, text_end_position: int, multiway_split_position: int = -1):
         if text_end_position is None:
@@ -338,9 +337,9 @@ class Beit3PositionEmbeddings(nn.Module):
         else:
             positions = text_end_position
         if multiway_split_position == -1:
-            return self.text(positions)
-        if multiway_split_position == 0:
             return self.image(positions)
+        if multiway_split_position == 0:
+            return self.text(positions)
         text_hidden, image_hidden = torch.split(
             hidden_states,
             [multiway_split_position, hidden_states.size(1) - multiway_split_position],
@@ -353,7 +352,7 @@ class Beit3PositionEmbeddings(nn.Module):
             text_positions = text_end_position
             image_positions = text_end_position
 
-        text_representations, image_representatations = self.text(text_positions), self.image(image_positions)
+        text_representations, image_representatations = self.image(text_positions), self.text(image_positions)
         return torch.cat([text_representations, image_representatations], dim=1)
 
 
@@ -804,7 +803,7 @@ class Beit3ForVisualReasoning(Beit3PreTrainedModel):
         self,
         input_ids,
         pixel_values,
-        text_padding_mask,
+        attention_mask,
         output_hidden_states=None,
         output_attentions=None,
         return_dict=None,
@@ -851,7 +850,7 @@ class Beit3ForVisualReasoning(Beit3PreTrainedModel):
         image2_values = image2_values.squeeze(1)
         vision_input = torch.cat((image1_values, image2_values), dim=0)
         language_input = torch.cat((input_ids, input_ids), dim=0)
-        text_padding_mask = torch.cat((text_padding_mask, text_padding_mask), dim=0)
+        text_padding_mask = torch.cat((attention_mask, attention_mask), dim=0)
 
         outputs = self.beit3(
             input_ids=language_input,
@@ -1010,7 +1009,7 @@ class Beit3ForCaptioning(Beit3PreTrainedModel):
         self,
         input_ids,
         pixel_values,
-        text_padding_mask,
+        attention_mask,
         language_masked_pos,
         text_len=None,
         past_key_value=None,
@@ -1081,7 +1080,7 @@ class Beit3ForCaptioning(Beit3PreTrainedModel):
         text_end_positions = None
         if pixel_values is None:
             uni_mask = uni_mask[-2:]
-            text_padding_mask = None
+            attention_mask = None
             # start position (2 (fairseq starts at 2) + cur_position) is equal to text_len
             text_end_positions = (
                 torch.arange(text_len, input_ids.size(1) + text_len, device=input_ids.device).long().unsqueeze(0)
@@ -1090,7 +1089,7 @@ class Beit3ForCaptioning(Beit3PreTrainedModel):
         outputs = self.beit3(
             input_ids=input_ids,
             pixel_values=pixel_values,
-            text_padding_mask=text_padding_mask,
+            text_padding_mask=attention_mask,
             attention_mask=uni_mask,
             past_key_value=past_key_value,
             text_end_positions=text_end_positions,
@@ -1274,7 +1273,7 @@ class Beit3ForImageTextRetrieval(Beit3PreTrainedModel):
         self,
         input_ids: torch.LongTensor,
         pixel_values: torch.FloatTensor,
-        text_padding_mask: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
         output_hidden_states: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
         return_dict: Optional[bool] = None,
@@ -1324,7 +1323,7 @@ class Beit3ForImageTextRetrieval(Beit3PreTrainedModel):
         outputs = self.beit3(
             input_ids=input_ids,
             pixel_values=None,
-            text_padding_mask=text_padding_mask,
+            text_padding_mask=attention_mask,
             output_hidden_states=output_hidden_states,
             output_attentions=output_attentions,
             return_dict=return_dict,
