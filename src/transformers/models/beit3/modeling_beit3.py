@@ -353,8 +353,8 @@ class Beit3Embedder(nn.Module):
         self.num_patches = (img_size[1] // patch_size[1]) * (img_size[0] // patch_size[0]) + 1
 
         # being consistent with original implementation with Fairseq, which starts from 2 for position embedding
-        self.text = nn.Embedding(self.num_patches + 2, config.embed_dim)
-        self.image = nn.Embedding(config.max_source_positions, config.embed_dim)
+        self.image = nn.Embedding(self.num_patches + 2, config.embed_dim)
+        self.text = nn.Embedding(config.max_source_positions, config.embed_dim)
 
     def forward(self, hidden_states: torch.Tensor, text_end_position: int, multiway_split_position: int = -1):
         if text_end_position is None:
@@ -362,9 +362,9 @@ class Beit3Embedder(nn.Module):
         else:
             positions = text_end_position
         if multiway_split_position == -1:
-            return self.text(positions)
-        if multiway_split_position == 0:
             return self.image(positions)
+        if multiway_split_position == 0:
+            return self.text(positions)
         text_hidden, image_hidden = torch.split(
             hidden_states,
             [multiway_split_position, hidden_states.size(1) - multiway_split_position],
@@ -377,7 +377,7 @@ class Beit3Embedder(nn.Module):
             text_positions = text_end_position
             image_positions = text_end_position
 
-        text_representations, image_representatations = self.text(text_positions), self.image(image_positions)
+        text_representations, image_representatations = self.image(text_positions), self.text(image_positions)
         return torch.cat([text_representations, image_representatations], dim=1)
 
 
